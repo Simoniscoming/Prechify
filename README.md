@@ -75,8 +75,9 @@ See `examples/demo/` and `src/schema/deck-v2.schema.json`.
 
 ## Compatibility (v0.1 — honest table)
 
-Acceptance matrix: 72 deterministic functional scenarios × 3 engines × 3 runs
-(+ cold-boot pass), Windows 11 / Intel Iris Xe, headed with native GPU.
+Acceptance matrix: 24 deterministic functional scenarios per pass × 3 passes
+(72 assertions) per engine, across 3 engines, plus a cold-boot pass per run —
+Windows 11 / Intel Iris Xe, headed with native GPU.
 
 | Environment | Status |
 |---|---|

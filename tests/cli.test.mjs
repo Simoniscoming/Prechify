@@ -13,20 +13,12 @@ import { run } from '../src/cli.mjs';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function makeDeckDir() {
+  // fixture source: examples/demo exists in BOTH the dev repo and the public
+  // tree — the dev root's deck.json/layers do not ship publicly (round-11)
   const dir = mkdtempSync(join(tmpdir(), 'prechify-cli-'));
-  cpSync(join(ROOT, 'layers'), join(dir, 'layers'), { recursive: true });
-  const v1 = JSON.parse(readFileSync(join(ROOT, 'deck.json'), 'utf8'));
-  const deck = {
-    schema_version: 2,
-    title: v1.title + '<em>注</em>',
-    locale: 'zh-CN',
-    root: v1.root,
-    layers: v1.layers.map((l) => ({
-      id: l.id, title: l.title, type: l.type,
-      spec: 'layers/' + l.spec.split('/').pop(),
-      drills: (l.drills ?? []).map(({ node, layer, label }) => ({ node, layer, label })),
-    })),
-  };
+  cpSync(join(ROOT, 'examples', 'demo', 'layers'), join(dir, 'layers'), { recursive: true });
+  const demo = JSON.parse(readFileSync(join(ROOT, 'examples', 'demo', 'deck.json'), 'utf8'));
+  const deck = { ...demo, title: demo.title + '<em>注</em>' };
   writeFileSync(join(dir, 'deck.json'), JSON.stringify(deck, null, 2) + '\n');
   return { dir, deck };
 }

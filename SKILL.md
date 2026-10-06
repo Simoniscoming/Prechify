@@ -75,8 +75,9 @@ standalone diagram belongs to archify.
 ## Limits (v0.1)
 
 - Desktop mouse + keyboard. Touch/pinch is not supported in v0.1.
-- Browser acceptance (Windows / Intel Iris Xe, 72 scenarios × 3 engines × 3
-  runs): **Chrome stable passed everything** including smoothness
+- Browser acceptance (Windows / Intel Iris Xe; 24 scenarios × 3 passes =
+  72 assertions per engine, 3 engines): **Chrome stable passed everything**
+  including smoothness
   (flight p95 ≤17ms). **Firefox and WebKit passed every functional scenario
   with zero console errors** (keyboard, focus and theme fallbacks verified),
   but flights run below Chrome's smoothness bar — Firefox deep dives p95

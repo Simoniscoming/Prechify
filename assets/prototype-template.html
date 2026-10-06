@@ -243,6 +243,13 @@
           var d = anim.done; anim = null; rafHandle = 0;
           document.documentElement.removeAttribute('data-flying');
           sharpenLive();
+          if (fontRelaxPending) {
+            // a font event arrived mid-flight (round-11: it used to be
+            // dropped) — re-measure labels now that geometry is final
+            fontRelaxPending = false;
+            relaxDiveLabels();
+            measureMinFonts();
+          }
           scheduleSweep(150);
           if (d) d();
         }
@@ -374,6 +381,7 @@
       // + hit rects; a pick that still collides records a warning (dataset +
       // console.warn) instead of pretending eight candidates always suffice.
       var labelWarnings = [];
+      var fontRelaxPending = false;
       function layerTextRects(info) {
         var out = [];
         info.own.querySelectorAll('text').forEach(function (t) {
@@ -441,9 +449,16 @@
             var lb2 = label.getBBox();
             placed.push({ x: lb2.x, y: lb2.y, w: lb2.width, h: lb2.height });
             placed.push({ x: b.x - 3, y: c.hitY, w: b.width + 6, h: c.hitH });
-            if (pickClash > 0.5 && pickClash < 1e5) {
+            // warn on BOTH failure modes: text overlap the candidates could
+            // not avoid, and a chosen slot that leaves the canvas (round-11:
+            // the 1e6 bounds penalty used to silence the warning entirely)
+            var outOfCanvas = lb2.x < vb.x - 2 || lb2.y < vb.y - 2 ||
+              lb2.x + lb2.width > vb.x + vb.w + 2 || lb2.y + lb2.height > vb.y + vb.h + 2;
+            var textOverlap = pickClash > 0.5 && pickClash < 1e5;
+            if (textOverlap || outOfCanvas) {
               labelWarnings.push(info.id + '/' + (E.hit.getAttribute('data-dive') || '?') +
-                ' 八候选仍有 ' + Math.round(pickClash) + 'u² 重叠');
+                (outOfCanvas ? ' 标签越出画布' : '') +
+                (textOverlap ? ' 八候选仍有 ' + Math.round(pickClash) + 'u² 重叠' : ''));
             }
           });
         });
@@ -743,7 +758,7 @@
             document.fonts.addEventListener('loadingdone', function () {
               clearTimeout(relaxPending);
               relaxPending = setTimeout(function () {
-                if (anim) return;
+                if (anim) { fontRelaxPending = true; return; }
                 relaxDiveLabels();
                 measureMinFonts();
               }, 120);
