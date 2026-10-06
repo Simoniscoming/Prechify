@@ -81,7 +81,7 @@ Windows 11 / Intel Iris Xe, headed with native GPU.
 
 | Environment | Status |
 |---|---|
-| Desktop Chromium (Chrome/Edge, current stable) | ✅ **full acceptance** — 72/72 functions, zero console errors, flight p50 8-13ms / p95 ≤17ms / warm max ≤60ms (2-of-3 rule passed both directions) |
+| Desktop Chromium (Chrome/Edge, current stable) | ✅ **full acceptance** — 72/72 functions, zero console errors, flight p50 8-13ms / p95 ≤17.1ms / warm max ≤60ms (2-of-3 rule passed both directions) |
 | Firefox (current stable) | ✅ functional acceptance (72/72, zero errors, keyboard/focus fallbacks verified) · ⚠ deep-dive flights p95 ~31-37ms — usable but below the Chrome-class smoothness bar; optimization scheduled for v0.2 |
 | WebKit (Windows, playwright build) | ✅ functional acceptance (72/72, zero errors) · ⚠ flights uniformly ~30-40ms/frame — visibly calmer than Chrome; **real-device Safari still unverified** (v0.2) |
 | Touch / pinch | ❌ not supported in v0.1 (desktop mouse + keyboard) |

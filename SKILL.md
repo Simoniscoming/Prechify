@@ -78,7 +78,7 @@ standalone diagram belongs to archify.
 - Browser acceptance (Windows / Intel Iris Xe; 24 scenarios × 3 passes =
   72 assertions per engine, 3 engines): **Chrome stable passed everything**
   including smoothness
-  (flight p95 ≤17ms). **Firefox and WebKit passed every functional scenario
+  (flight p95 ≤17.1ms). **Firefox and WebKit passed every functional scenario
   with zero console errors** (keyboard, focus and theme fallbacks verified),
   but flights run below Chrome's smoothness bar — Firefox deep dives p95
   ~31-37ms, WebKit ~30-40ms/frame. Real-device Safari is not yet verified.
