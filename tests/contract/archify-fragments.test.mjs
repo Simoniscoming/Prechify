@@ -11,10 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { runArchify, extractFragment, extractFontsAndCss, namespaceIds, VENDOR_BIN, AdapterError } from '../../src/archify-adapter.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+// fixtures live in examples/demo (ships in both dev and public trees);
+// the dev root's layers/ does not exist in the public tree (round-11 finding)
 const FIXTURES = [
-  { type: 'architecture', spec: 'layers/overview.architecture.json', probeIds: ['order', 'gateway', 'db'] },
-  { type: 'workflow', spec: 'layers/order.workflow.json', probeIds: ['pay-callback', 'cart'] },
-  { type: 'sequence', spec: 'layers/payment.sequence.json', probeIds: ['gateway', 'buyer'] },
+  { type: 'architecture', spec: 'examples/demo/layers/overview.architecture.json', probeIds: ['order', 'gateway', 'db'] },
+  { type: 'workflow', spec: 'examples/demo/layers/order.workflow.json', probeIds: ['pay-callback', 'cart'] },
+  { type: 'sequence', spec: 'examples/demo/layers/payment.sequence.json', probeIds: ['gateway', 'buyer'] },
 ];
 
 test('vendored renderer validates and renders all three diagram types', async () => {
