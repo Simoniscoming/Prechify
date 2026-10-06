@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-preset="classic">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="generator" content="prechify prototype">
+  <title>__DECK_TITLE__ · prechify</title>
+  <script>
+    (function () {
+      try {
+        var theme = null;
+        try {
+          var param = new URLSearchParams(window.location.search).get('theme');
+          if (param === 'light' || param === 'dark') theme = param;
+        } catch (_) {}
+        if (!theme) { try { theme = localStorage.getItem('pch-theme'); } catch (_) {} }
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_) {}
+    })();
+  </script>
+  <!-- PRECHIFY:FONTS_STYLE -->
+  <!-- PRECHIFY:DIAGRAM_STYLE -->
+  <!-- PRECHIFY:DECK_DATA -->
+  <style id="pch-runtime-css">
+    html, body {
+      margin: 0; padding: 0; max-width: none; width: 100%; height: 100%;
+      background: var(--bg); color: var(--text); overflow: hidden;
+      font-family: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas,
+                   "PingFang SC", "Microsoft YaHei", monospace;
+    }
+    #pch-stage {
+      position: fixed; inset: 0; opacity: 0; background: var(--bg);
+      background-image:
+        linear-gradient(var(--grid, rgba(120, 140, 170, 0.18)) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid, rgba(120, 140, 170, 0.18)) 1px, transparent 1px);
+      background-size: 44px 44px;
+    }
+    #pch-stage.pch-ready { opacity: 1; transition: opacity .45s ease; }
+
+    /* ---- per-layer HTML compositing (Codex round-4 architecture fix) ---------
+       Every layer is an independent wrapper with its own fixed-viewBox SVG.
+       The camera is pure JS state; each frame only writes the wrapper's CSS
+       transform (compositor path — no shared viewBox, no SVG re-layout). */
+    .pch-wrap { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+    .pch-wrap > svg.pch-layer { width: 100%; height: 100%; display: block; overflow: hidden; }
+
+    /* LOD lives on the wrapper itself: opacity on an HTML element is a true
+       compositor property, so fades never repaint the layer SVG. */
+    .pch-wrap[data-lod="off"]   { visibility: hidden; pointer-events: none; }
+    .pch-wrap[data-lod="ghost"] { opacity: 0.1; pointer-events: none; transition: opacity .38s ease; }
+    /* Ghost layers show spatial context only: the drill hosts sit magnified 10x+
+       in ghost view, so their labels/fills read as giant watermark blobs. Fade
+       the magnified hosts themselves; the dive ring still marks the spot. */
+    .pch-wrap[data-lod="ghost"] [data-node-id] { opacity: 0.25; transition: opacity .38s ease; }
+    .pch-wrap[data-lod="live"]  { opacity: 1; transition: opacity .32s ease; }
+    .pch-wrap[data-lod="exit"]  { visibility: visible; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+    html[data-flying="out"] .pch-wrap[data-lod="ghost"] { visibility: hidden; }
+    .pch-grid-bg { visibility: hidden; }
+    .pch-own [data-node-id] { cursor: default; }
+    /* Archify sigils use non-scaling-stroke for the old nested-SVG world; under
+       the per-layer CSS transform it blows up into thick blobs that bury deep
+       diagrams and dominate raster cost (Codex round-6 P1-14). Strokes now
+       scale with the layer like every other piece of the diagram. */
+    svg .semantic-sigil > * { vector-effect: none !important; }
+
+    /* ---- dive affordances ------------------------------------------------- */
+    .pch-dive-ring {
+      fill: none; stroke: var(--pch-dive, #38bdf8); stroke-width: 1.4;
+      stroke-dasharray: 5 4; opacity: 0.55;
+    }
+    .pch-dive-glyph-ring { fill: var(--bg); fill-opacity: 0.85; stroke: var(--pch-dive, #38bdf8); stroke-width: 1.5; }
+    .pch-dive-glyph-handle { stroke: var(--pch-dive, #38bdf8); stroke-width: 1.6; stroke-linecap: round; }
+    .pch-dive-glyph-plus { stroke: var(--pch-dive, #38bdf8); stroke-width: 1.4; stroke-linecap: round; }
+    .pch-dive-glyph { opacity: 0.8; }
+    .pch-dive-label {
+      font-size: 11px; text-anchor: middle; dominant-baseline: middle;
+      fill: var(--text); opacity: 0; paint-order: stroke; stroke: var(--bg); stroke-width: 3px;
+      transition: opacity .16s ease;
+    }
+    .pch-dive-hit { fill: transparent; cursor: zoom-in; outline: none; }
+    /* Per-entry hover/focus (Codex round-8 R8-P1-01): with several drill
+       entries in one layer, the state must highlight ONLY the hovered/focused
+       entry — ring brightens + its own label fades in — or keyboard users
+       cannot tell which branch Enter will activate. */
+    .pch-dive-entry:has(.pch-dive-hit:hover) .pch-dive-label,
+    .pch-dive-entry:has(.pch-dive-hit:focus-visible) .pch-dive-label { opacity: 1; }
+    .pch-dive-entry:has(.pch-dive-hit:hover) .pch-dive-ring,
+    .pch-dive-entry:has(.pch-dive-hit:focus-visible) .pch-dive-ring { opacity: .95; stroke-width: 2; }
+    .pch-dive-entry:has(.pch-dive-hit:hover) .pch-dive-glyph,
+    .pch-dive-entry:has(.pch-dive-hit:focus-visible) .pch-dive-glyph { opacity: 1; }
+
+    /* ---- chrome ----------------------------------------------------------- */
+    #pch-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 40; display: flex;
+      align-items: center; gap: 14px; padding: 10px 16px;
+      background: color-mix(in srgb, var(--bg) 72%, transparent);
+      backdrop-filter: blur(8px); border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+      font-size: 13px;
+    }
+    #pch-title { font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+    #pch-crumbs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+    .pch-crumb {
+      background: none; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+      color: var(--text); border-radius: 999px; padding: 3px 12px; font: inherit;
+      cursor: pointer; opacity: .75; transition: opacity .15s ease, border-color .15s ease;
+    }
+    .pch-crumb:hover { opacity: 1; }
+    .pch-crumb[aria-current="true"] { opacity: 1; border-color: var(--pch-dive, #38bdf8); color: var(--pch-dive, #38bdf8); }
+    .pch-crumb-sep { opacity: .4; user-select: none; }
+    #pch-actions { margin-left: auto; display: flex; gap: 8px; }
+    #pch-actions button {
+      background: none; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+      color: var(--text); border-radius: 8px; padding: 4px 12px; font: inherit; cursor: pointer;
+    }
+    #pch-actions button:hover { border-color: var(--pch-dive, #38bdf8); }
+    #pch-hint {
+      position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 40;
+      font-size: 12px; opacity: .55; padding: 5px 14px; border-radius: 999px;
+      background: color-mix(in srgb, var(--bg) 65%, transparent);
+      border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+      user-select: none; pointer-events: none; white-space: nowrap;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pch-wrap { transition: none !important; }
+      #pch-stage.pch-ready { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <header id="pch-bar">
+    <div id="pch-title">__DECK_TITLE__</div>
+    <nav id="pch-crumbs" aria-label="层级导航"></nav>
+    <div id="pch-actions">
+      <button id="pch-home" type="button" title="返回总览 (Home)">总览</button>
+      <button id="pch-theme" type="button" title="切换明暗主题">明 / 暗</button>
+    </div>
+  </header>
+  <main id="pch-stage" aria-label="可穿透架构画布">
+    <!-- PRECHIFY:WORLD_SVG -->
+  </main>
+  <div id="pch-hint">点击高亮模块穿透进入 · 滚轮缩放 · 拖拽平移 · Esc / ← 返回上层</div>
+  <script>
+    (function () {
+      'use strict';
+      var deck = JSON.parse(document.getElementById('pch-deck-data').textContent);
+      var stage = document.getElementById('pch-stage');
+      var crumbsEl = document.getElementById('pch-crumbs');
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      var L = new Map();
+      deck.layers.forEach(function (l) {
+        var wrap = stage.querySelector('.pch-wrap[data-layer="' + l.id + '"]');
+        if (!wrap) throw new Error('layer wrapper missing: ' + l.id);
+        L.set(l.id, {
+          id: l.id, title: l.title, type: l.type, viewBox: l.viewBox, drills: l.drills,
+          parent: l.parent ? l.parent.parent : null, parentEntry: l.parent,
+          wrap: wrap,
+          el: wrap.querySelector(':scope > svg.pch-layer'),
+          own: wrap.querySelector(':scope > svg.pch-layer > g.pch-own'),
+          overlay: wrap.querySelector(':scope > svg.pch-layer > g.pch-overlay'),
+          worldFrame: null, hostBox: null
+        });
+      });
+      var rootId = deck.root;
+
+      /* ---- camera: pure JS state; every frame only writes wrapper transforms -- */
+      var cam = { cx: 0, cy: 0, w: 1 };
+      var aspect = 16 / 9;
+      var anim = null;
+      var rafHandle = 0;
+      var DIVE_MS = 780, EXIT_MS = 680, ROOT_EXIT_MS = 860;
+      // Every flight whose target is the root layer uses the longer duration:
+      // its large re-raster spike needs the wider easing tail (Codex round-7).
+      function exitDur(id) { return id === rootId ? ROOT_EXIT_MS : EXIT_MS; }
+
+      function stageSize() {
+        aspect = Math.max(0.2, stage.clientWidth / Math.max(1, stage.clientHeight));
+      }
+      function applyCamera() {
+        var k = stage.clientWidth / cam.w;
+        var x0 = cam.cx - cam.w / 2;
+        var y0 = cam.cy - (cam.w / aspect) / 2;
+        L.forEach(function (l) {
+          var f = l.worldFrame;
+          if (!f) return;
+          var lk = l.layoutK || 1;
+          // wrap layout = worldFrame * layoutK; displayed size = layout * k/layoutK.
+          // During flight the texture scales as a bitmap (Prezi-style motion);
+          // sharpenLive() re-lays the live layer out at display size when idle.
+          l.wrap.style.transform =
+            'translate(' + ((f.x - x0) * k) + 'px, ' + ((f.y - y0) * k) + 'px) scale(' + (k / lk) + ')';
+        });
+      }
+      // Vector-sharp landing: resize the live wrapper to its displayed size so
+      // the SVG re-rasterizes crisp. will-change layers never do this on their
+      // own — their frozen low-res texture stays blurry forever otherwise.
+      function sharpenLive() {
+        var l = L.get(focused);
+        if (!l || !l.worldFrame) return;
+        var k = stage.clientWidth / cam.w;
+        l.layoutK = k;
+        l.wrap.style.width = (l.worldFrame.w * k) + 'px';
+        l.wrap.style.height = (l.worldFrame.h * k) + 'px';
+        applyCamera();
+      }
+      function easeCubicInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+      function scheduleTick() { rafHandle = requestAnimationFrame(tick); }
+      function sweepExitLayers() {
+        stage.querySelectorAll('.pch-wrap[data-lod="exit"]').forEach(function (w) {
+          w.setAttribute('data-lod', 'off');
+          w.setAttribute('aria-hidden', 'true');
+        });
+      }
+      var sweepTimer = 0;
+      function scheduleSweep(ms) {
+        clearTimeout(sweepTimer);
+        sweepTimer = setTimeout(function () { sweepTimer = 0; sweepExitLayers(); }, ms);
+      }
+      function flyTo(target, ms, onDone) {
+        cancelAnim();
+        clearTimeout(sweepTimer); sweepTimer = 0;
+        clearTimeout(wheelTimer); wheelTimer = 0;
+        anim = {
+          from: { cx: cam.cx, cy: cam.cy, w: cam.w },
+          to: target, t0: performance.now(),
+          dur: reducedMotion.matches ? 0 : ms, done: onDone || null
+        };
+        document.documentElement.setAttribute('data-flying', target.w < cam.w * 0.999 ? 'in' : 'out');
+        scheduleTick();
+      }
+      function tick(now) {
+        if (!anim) { rafHandle = 0; return; }
+        var t = anim.dur <= 0 ? 1 : Math.min(1, (now - anim.t0) / anim.dur);
+        var k = easeCubicInOut(t);
+        cam.cx = anim.from.cx + (anim.to.cx - anim.from.cx) * k;
+        cam.cy = anim.from.cy + (anim.to.cy - anim.from.cy) * k;
+        cam.w = Math.exp(Math.log(anim.from.w) + (Math.log(anim.to.w) - Math.log(anim.from.w)) * k);
+        applyCamera();
+        if (t >= 1) {
+          var d = anim.done; anim = null; rafHandle = 0;
+          document.documentElement.removeAttribute('data-flying');
+          sharpenLive();
+          scheduleSweep(150);
+          if (d) d();
+        }
+        else scheduleTick();
+      }
+      function cancelAnim() {
+        var wasFlying = !!anim;
+        anim = null;
+        if (rafHandle) { cancelAnimationFrame(rafHandle); rafHandle = 0; }
+        if (wasFlying) {
+          document.documentElement.removeAttribute('data-flying');
+          sweepExitLayers();
+        }
+      }
+
+      function homeCam(id, pad) {
+        var f = L.get(id).worldFrame;
+        var p = pad || 1.08;
+        var w = f.w * p, h = f.h * p;
+        if (w / h > aspect) h = w / aspect; else w = h * aspect;
+        return { cx: f.x + f.w / 2, cy: f.y + f.h / 2, w: w };
+      }
+      function minCamW() {
+        var m = Infinity;
+        L.forEach(function (l) { if (l.worldFrame) m = Math.min(m, l.worldFrame.w); });
+        return m * 0.3;
+      }
+      function maxCamW() { return L.get(rootId).worldFrame.w * 1.9; }
+
+      /* ---- geometry: pure world-space math, measured once at boot ------------- */
+      function pt(m, p) { return { x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f }; }
+      function transformRect(m, r) {
+        var xs = [], ys = [];
+        [[r.x, r.y], [r.x + r.width, r.y], [r.x, r.y + r.height], [r.x + r.width, r.y + r.height]]
+          .forEach(function (p) { var q = pt(m, { x: p[0], y: p[1] }); xs.push(q.x); ys.push(q.y); });
+        var x = Math.min.apply(null, xs), y = Math.min.apply(null, ys);
+        return { x: x, y: y, width: Math.max.apply(null, xs) - x, height: Math.max.apply(null, ys) - y };
+      }
+      function hostBoxInLayer(layer, hostEl) {
+        var lc = layer.el.getScreenCTM(), hc = hostEl.getScreenCTM();
+        if (!lc || !hc) return null;
+        return transformRect(lc.inverse().multiply(hc), hostEl.getBBox());
+      }
+      function setAttrs(el, map) { Object.keys(map).forEach(function (k) { el.setAttribute(k, map[k]); }); }
+
+      function sizeWrap(info) {
+        info.wrap.style.width = info.worldFrame.w + 'px';
+        info.wrap.style.height = info.worldFrame.h + 'px';
+      }
+      function placeLayer(info) {
+        if (info.id === rootId) {
+          var vb = info.viewBox;
+          info.worldFrame = { x: vb.x, y: vb.y, w: vb.w, h: vb.h };
+        }
+        sizeWrap(info);
+        info.drills.forEach(function (d) {
+          var child = L.get(d.layer);
+          var host = info.own.querySelector('[data-node-id="' + d.node + '"]');
+          if (!host) throw new Error('drill host missing in ' + info.id + ': ' + d.node);
+          var box = hostBoxInLayer(info, host);
+          var inset = Math.min(box.width, box.height) * 0.05 + 2;
+          var ax = box.x + inset, ay = box.y + inset;
+          var aw = Math.max(8, box.width - 2 * inset), ah = Math.max(8, box.height - 2 * inset);
+          var cb = child.viewBox;
+          var s = Math.min(aw / cb.w, ah / cb.h);
+          var dw = cb.w * s, dh = cb.h * s;
+          var px = ax + (aw - dw) / 2, py = ay + (ah - dh) / 2;
+          var k = info.worldFrame.w / info.viewBox.w;
+          child.worldFrame = {
+            x: info.worldFrame.x + (px - info.viewBox.x) * k,
+            y: info.worldFrame.y + (py - info.viewBox.y) * k,
+            w: dw * k, h: dh * k
+          };
+          child.hostBox = box;
+          placeLayer(child);
+        });
+      }
+
+      /* ---- dive overlays ---------------------------------------------------- */
+      function buildOverlays(info) {
+        info.drills.forEach(function (d) {
+          var child = L.get(d.layer);
+          var b = child.hostBox;
+          var ns = 'http://www.w3.org/2000/svg';
+          var ring = document.createElementNS(ns, 'rect');
+          setAttrs(ring, {
+            class: 'pch-dive-ring', x: b.x - 3, y: b.y - 3,
+            width: b.width + 6, height: b.height + 6, rx: 9
+          });
+          var glyph = document.createElementNS(ns, 'g');
+          setAttrs(glyph, { class: 'pch-dive-glyph', transform: 'translate(' + (b.x + b.width - 12) + ' ' + (b.y + 8) + ')' });
+          glyph.innerHTML =
+            '<circle class="pch-dive-glyph-ring" r="5"></circle>' +
+            '<line class="pch-dive-glyph-handle" x1="3.5" y1="3.5" x2="7" y2="7"></line>' +
+            '<path class="pch-dive-glyph-plus" d="M -2.4 0 H 2.4 M 0 -2.4 V 2.4"></path>';
+          var label = document.createElementNS(ns, 'text');
+          setAttrs(label, { class: 'pch-dive-label', x: b.x + b.width / 2, y: b.y + b.height + 14 });
+          label.textContent = '▸ ' + (d.label || child.title);
+          var hit = document.createElementNS(ns, 'rect');
+          setAttrs(hit, {
+            class: 'pch-dive-hit', 'data-dive': d.layer,
+            x: b.x - 3, y: b.y - 3, width: b.width + 6, height: b.height + 22,
+            role: 'button', tabindex: '-1', 'aria-label': '穿透进入 ' + (d.label || child.title)
+          });
+          // each entry is its own group so hover/focus styling scopes to one
+          // entry (several drills share a layer now — round-8 R8-P1-01)
+          var entry = document.createElementNS(ns, 'g');
+          setAttrs(entry, { class: 'pch-dive-entry' });
+          entry.appendChild(ring);
+          entry.appendChild(glyph);
+          entry.appendChild(label);
+          entry.appendChild(hit);
+          info.overlay.appendChild(entry);
+          (info.diveEntries = info.diveEntries || []).push({ label: label, hit: hit, b: b });
+          buildOverlays(child);
+        });
+      }
+      // Label placement: no fixed side is safe (below the host the label
+      // buries edge-label text, above it can hit another edge label). For each
+      // entry measure overlap against the layer's own text via getBBox (user
+      // units — independent of viewport/transform) across six candidates and
+      // keep the quietest; ties prefer the earlier candidate. Deferred until
+      // after the first sharpen + one more frame: measuring any earlier reads
+      // stale font metrics (embedded WOFF2 activates late) and mid-boot getBBox
+      // misplaces nodes by a few units.
+      // Label placement, hardening (round-10 B2): text bboxes are CTM-mapped
+      // into layer user space so transformed groups compare in one frame; the
+      // avoid set grows with viewBox bounds and already-placed sibling labels
+      // + hit rects; a pick that still collides records a warning (dataset +
+      // console.warn) instead of pretending eight candidates always suffice.
+      var labelWarnings = [];
+      function layerTextRects(info) {
+        var out = [];
+        info.own.querySelectorAll('text').forEach(function (t) {
+          var b = t.getBBox();
+          if (b.width < 0.5 || b.height < 0.5) return;
+          var own = t.getScreenCTM(), base = info.el && info.el.getScreenCTM();
+          if (!own || !base) { out.push({ x: b.x, y: b.y, w: b.width, h: b.height }); return; }
+          var m = base.inverse().multiply(own);
+          var ps = [
+            [b.x, b.y], [b.x + b.width, b.y],
+            [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]
+          ].map(function (p) { return pt(m, { x: p[0], y: p[1] }); });
+          var xs = ps.map(function (p) { return p.x; }), ys = ps.map(function (p) { return p.y; });
+          var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
+          out.push({ x: x0, y: y0, w: Math.max.apply(null, xs) - x0, h: Math.max.apply(null, ys) - y0 });
+        });
+        return out;
+      }
+      function relaxDiveLabels() {
+        labelWarnings = [];
+        L.forEach(function (info) {
+          var texts = layerTextRects(info);
+          var vb = info.viewBox;
+          var placed = []; // sibling labels/hits already relaxed this pass
+          (info.diveEntries || []).forEach(function (E) {
+            var b = E.b, label = E.label;
+            var candidates = [
+              { x: b.x + b.width / 2, y: b.y - 9, anchor: 'middle', hitY: b.y - 25, hitH: b.height + 28 },
+              { x: b.x + b.width / 2, y: b.y + b.height + 14, anchor: 'middle', hitY: b.y - 3, hitH: b.height + 22 },
+              { x: b.x + b.width - 20, y: b.y + 12, anchor: 'end', hitY: b.y - 3, hitH: b.height + 6 },
+              { x: b.x + 8, y: b.y + 12, anchor: 'start', hitY: b.y - 3, hitH: b.height + 6 },
+              { x: b.x + b.width + 8, y: b.y + 12, anchor: 'start', hitY: b.y - 3, hitH: b.height + 6 },
+              { x: b.x - 8, y: b.y + 12, anchor: 'end', hitY: b.y - 3, hitH: b.height + 6 },
+              // hub nodes carry edge labels on every near side — two farther
+              // slots clear them (e.g. the edge label right above an order hub)
+              { x: b.x + b.width / 2, y: b.y - 24, anchor: 'middle', hitY: b.y - 40, hitH: b.height + 43 },
+              { x: b.x + b.width / 2, y: b.y + b.height + 28, anchor: 'middle', hitY: b.y - 3, hitH: b.height + 36 }
+            ];
+            function clashAt(c) {
+              label.setAttribute('x', c.x); label.setAttribute('y', c.y);
+              label.style.textAnchor = c.anchor;
+              var lb = label.getBBox(), area = 0;
+              // 2u inflation: the label renders with a 3px bg halo stroke
+              var l0 = lb.x - 2, l1 = lb.x + lb.width + 2, t0 = lb.y - 2, t1 = lb.y + lb.height + 2;
+              function add(r) {
+                var ox = Math.min(l1, r.x + r.w) - Math.max(l0, r.x);
+                var oy = Math.min(t1, r.y + r.h) - Math.max(t0, r.y);
+                if (ox > 0.5 && oy > 0.5) area += ox * oy;
+              }
+              texts.forEach(add);
+              placed.forEach(add);
+              // leaving the canvas counts as a full clash — never pick it
+              if (l0 < vb.x - 2 || t0 < vb.y - 2 || l1 > vb.x + vb.w + 2 || t1 > vb.y + vb.h + 2) area += 1e6;
+              return area;
+            }
+            var pick = 0, pickClash = Infinity;
+            candidates.forEach(function (c, i) {
+              var a = clashAt(c);
+              if (a < pickClash) { pickClash = a; pick = i; }
+            });
+            var c = candidates[pick];
+            clashAt(c); // leave the label at the chosen spot
+            E.hit.setAttribute('y', c.hitY);
+            E.hit.setAttribute('height', c.hitH);
+            var lb2 = label.getBBox();
+            placed.push({ x: lb2.x, y: lb2.y, w: lb2.width, h: lb2.height });
+            placed.push({ x: b.x - 3, y: c.hitY, w: b.width + 6, h: c.hitH });
+            if (pickClash > 0.5 && pickClash < 1e5) {
+              labelWarnings.push(info.id + '/' + (E.hit.getAttribute('data-dive') || '?') +
+                ' 八候选仍有 ' + Math.round(pickClash) + 'u² 重叠');
+            }
+          });
+        });
+        try {
+          if (labelWarnings.length) {
+            document.documentElement.setAttribute('data-pch-label-warnings', JSON.stringify(labelWarnings));
+            console.warn('[prechify] 标签避让警告：' + labelWarnings.join('；'));
+          } else document.documentElement.removeAttribute('data-pch-label-warnings');
+        } catch (_) {}
+      }
+
+      /* ---- LOD / focus ------------------------------------------------------ */
+      var focused = rootId;
+      function isAncestor(a, id) {
+        var cur = L.get(id);
+        while (cur.parentEntry) {
+          if (cur.parentEntry.parent === a) return true;
+          cur = L.get(cur.parentEntry.parent);
+        }
+        return false;
+      }
+      function setLodStates(id, historyMode) {
+        var prev = focused;
+        sweepExitLayers();
+        focused = id;
+        L.forEach(function (l) {
+          var state = l.id === id ? 'live' : (isAncestor(l.id, id) ? 'ghost' : 'off');
+          l.wrap.setAttribute('data-lod', state);
+          if (state === 'off') l.wrap.setAttribute('aria-hidden', 'true');
+          else l.wrap.removeAttribute('aria-hidden');
+          l.overlay.querySelectorAll('.pch-dive-hit').forEach(function (h) {
+            h.setAttribute('tabindex', state === 'live' ? '0' : '-1');
+          });
+        });
+        if (prev && prev !== id && !isAncestor(prev, id)) {
+          L.get(prev).wrap.setAttribute('data-lod', 'exit');
+        }
+        if (anim) clearTimeout(sweepTimer);
+        else scheduleSweep(520);
+        renderCrumbs();
+        syncHash(historyMode || 'replace');
+      }
+      function chainTo(id) {
+        var out = [], cur = L.get(id);
+        while (cur) { out.unshift(cur); cur = cur.parentEntry ? L.get(cur.parentEntry.parent) : null; }
+        return out;
+      }
+      function renderCrumbs() {
+        crumbsEl.innerHTML = '';
+        chainTo(focused).forEach(function (l, i, arr) {
+          if (i > 0) {
+            var sep = document.createElement('span');
+            sep.className = 'pch-crumb-sep'; sep.textContent = '›';
+            crumbsEl.appendChild(sep);
+          }
+          var b = document.createElement('button');
+          b.type = 'button'; b.className = 'pch-crumb'; b.textContent = l.title;
+          b.setAttribute('aria-current', i === arr.length - 1 ? 'true' : 'false');
+          b.addEventListener('click', function () { goToLayer(l.id, 'crumb'); });
+          crumbsEl.appendChild(b);
+        });
+      }
+      function syncHash(mode) {
+        var url = location.pathname + location.search;
+        if (focused !== rootId) url += '#layer=' + focused;
+        try {
+          if (location.pathname + location.search + location.hash === url) return;
+          if (mode === 'push') history.pushState(null, '', url);
+          else if (mode !== 'none') history.replaceState(null, '', url);
+        } catch (_) {}
+      }
+      function projFont(l) {
+        return (stage.clientWidth / cam.w) * (l.worldFrame.w / l.viewBox.w) * (l.minFontUnits || 7);
+      }
+      function measureMinFonts() {
+        // SVG text computed font-size IS the layer-user-unit size (the CTM never
+        // feeds back into computed style) — do not divide by any screen scale.
+        L.forEach(function (l) {
+          var minU = Infinity;
+          l.own.querySelectorAll('text').forEach(function (t) {
+            var u = parseFloat(getComputedStyle(t).fontSize);
+            if (u > 0) minU = Math.min(minU, u);
+          });
+          l.minFontUnits = Number.isFinite(minU) && minU > 0 ? minU : 7;
+        });
+      }
+      function insideFrameOf(id) {
+        var f = L.get(id).worldFrame;
+        return cam.cx >= f.x && cam.cx <= f.x + f.w && cam.cy >= f.y && cam.cy <= f.y + f.h;
+      }
+      function reconcileFocus() {
+        if (anim) return;
+        var best = null, bestDepth = 0;
+        L.forEach(function (l) {
+          if (!l.worldFrame) return;
+          if (insideFrameOf(l.id) && projFont(l) >= 7) {
+            var d = chainTo(l.id).length;
+            if (!best || d > bestDepth) { best = l.id; bestDepth = d; }
+          }
+        });
+        if (!best) best = rootId;
+        if (best === focused) return;
+        if (isAncestor(best, focused) && insideFrameOf(focused) && projFont(L.get(focused)) >= 6) return;
+        trimStackTo(best);
+        setLodStates(best);
+      }
+
+      /* ---- navigation -------------------------------------------------------- */
+      var diveStack = [];
+      function trimStackTo(id) {
+        var chain = chainTo(id).map(function (l) { return l.id; });
+        diveStack = diveStack.filter(function (e) {
+          return chain.indexOf(e.layer) !== -1 && e.layer !== id;
+        });
+        chainTo(id).slice(0, -1).forEach(function (anc) {
+          var has = diveStack.some(function (e) { return e.layer === anc.id; });
+          if (!has) diveStack.push({ layer: anc.id, cam: homeCam(anc.id) });
+        });
+        diveStack.sort(function (a, b) { return chain.indexOf(a.layer) - chain.indexOf(b.layer); });
+      }
+      function goToLayer(id, via) {
+        if (via === 'crumb') {
+          var savedCam = null;
+          for (var i = diveStack.length - 1; i >= 0; i--) {
+            if (diveStack[i].layer === id) { savedCam = diveStack[i].cam; break; }
+          }
+          trimStackTo(id);
+          setLodStates(id, 'push');
+          flyTo(savedCam ? { cx: savedCam.cx, cy: savedCam.cy, w: savedCam.w } : homeCam(id), exitDur(id));
+          return;
+        }
+        if (id === focused && via !== 'init') {
+          if (via === 'dive') return;
+          flyTo(homeCam(id), via === 'home' ? EXIT_MS : DIVE_MS);
+          return;
+        }
+        if (via === 'dive') diveStack.push({ layer: focused, cam: { cx: cam.cx, cy: cam.cy, w: cam.w } });
+        if (via === 'home') diveStack = [];
+        setLodStates(id, 'push');
+        flyTo(homeCam(id), via === 'dive' ? DIVE_MS : EXIT_MS);
+      }
+      function exitOne() {
+        if (!diveStack.length) {
+          if (focused === rootId) { flyTo(homeCam(rootId), ROOT_EXIT_MS); return; }
+          setLodStates(rootId, 'push');
+          flyTo(homeCam(rootId), ROOT_EXIT_MS);
+          return;
+        }
+        var entry = diveStack.pop();
+        setLodStates(entry.layer, 'push');
+        flyTo(entry.cam, exitDur(entry.layer));
+      }
+
+      /* ---- events ------------------------------------------------------------ */
+      var dragInfo = null, suppressClick = false, wheelTimer = 0;
+      function screenToWorld(px, py) {
+        var h = cam.w / aspect;
+        return {
+          x: cam.cx - cam.w / 2 + (px / stage.clientWidth) * cam.w,
+          y: cam.cy - h / 2 + (py / stage.clientHeight) * h
+        };
+      }
+      function bindEvents() {
+        stage.addEventListener('click', function (e) {
+          if (suppressClick) return;
+          var hit = e.target.closest ? e.target.closest('.pch-dive-hit') : null;
+          if (hit) goToLayer(hit.getAttribute('data-dive'), 'dive');
+        });
+        stage.addEventListener('keydown', function (e) {
+          var hit = e.target.closest ? e.target.closest('.pch-dive-hit') : null;
+          if (hit && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            goToLayer(hit.getAttribute('data-dive'), 'dive');
+          }
+        });
+        stage.addEventListener('dblclick', function (e) {
+          if (e.target.closest && e.target.closest('.pch-dive-hit')) return;
+          flyTo(homeCam(focused), DIVE_MS);
+        });
+        stage.addEventListener('wheel', function (e) {
+          e.preventDefault(); cancelAnim();
+          var factor = Math.exp(e.deltaY * 0.00125);
+          var nw = Math.min(maxCamW(), Math.max(minCamW(), cam.w * factor));
+          var r = stage.getBoundingClientRect();
+          var px = e.clientX - r.left, py = e.clientY - r.top;
+          var before = screenToWorld(px, py);
+          cam.w = nw;
+          var h = cam.w / aspect;
+          cam.cx = before.x - (px / stage.clientWidth - 0.5) * cam.w;
+          cam.cy = before.y - (py / stage.clientHeight - 0.5) * h;
+          applyCamera();
+          clearTimeout(wheelTimer);
+          wheelTimer = setTimeout(function () { reconcileFocus(); sharpenLive(); }, 300);
+        }, { passive: false });
+        stage.addEventListener('pointerdown', function (e) {
+          if (e.button !== 0) return;
+          cancelAnim();
+          clearTimeout(wheelTimer);
+          wheelTimer = setTimeout(function () { reconcileFocus(); sharpenLive(); }, 300);
+          dragInfo = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId };
+          suppressClick = false;
+        });
+        window.addEventListener('pointermove', function (e) {
+          if (!dragInfo || e.pointerId !== dragInfo.id) return;
+          var dx = e.clientX - dragInfo.x, dy = e.clientY - dragInfo.y;
+          if (Math.abs(dx) + Math.abs(dy) > 4) { dragInfo.moved = true; cancelAnim(); }
+          if (!dragInfo.moved) return;
+          suppressClick = true;
+          dragInfo.x = e.clientX; dragInfo.y = e.clientY;
+          var h = cam.w / aspect;
+          cam.cx -= (dx / stage.clientWidth) * cam.w;
+          cam.cy -= (dy / stage.clientHeight) * h;
+          applyCamera();
+          clearTimeout(wheelTimer);
+          wheelTimer = setTimeout(function () { reconcileFocus(); sharpenLive(); }, 300);
+        });
+        window.addEventListener('pointerup', function (e) {
+          if (dragInfo && e.pointerId === dragInfo.id) {
+            window.setTimeout(function () { suppressClick = false; }, 0);
+            dragInfo = null;
+          }
+        });
+        window.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' || e.key === 'ArrowLeft') { exitOne(); }
+          else if (e.key === 'Home') { diveStack = []; setLodStates(rootId, 'push'); flyTo(homeCam(rootId), ROOT_EXIT_MS); }
+        });
+        document.getElementById('pch-home').addEventListener('click', function () {
+          diveStack = []; setLodStates(rootId, 'push'); flyTo(homeCam(rootId), ROOT_EXIT_MS);
+        });
+        document.getElementById('pch-theme').addEventListener('click', function () {
+          var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', cur);
+          try { localStorage.setItem('pch-theme', cur); } catch (_) {}
+        });
+        window.addEventListener('resize', function () {
+          stageSize();
+          var wasFlying = !!anim;
+          cancelAnim();
+          if (wasFlying) { flyTo(homeCam(focused), 500); }
+          else { applyCamera(); reconcileFocus(); sharpenLive(); }
+        });
+        window.addEventListener('hashchange', function () {
+          var m = (location.hash || '').match(/#layer=([A-Za-z0-9_-]+)/);
+          var target = m && L.has(m[1]) ? m[1] : rootId;
+          if (target !== focused) {
+            trimStackTo(target);
+            setLodStates(target, 'none');
+            flyTo(homeCam(target), exitDur(target));
+          }
+        });
+      }
+
+      /* ---- strip inherited button semantics from archify nodes ---------------- */
+      function cleanNodeSemantics() {
+        L.forEach(function (l) {
+          l.own.querySelectorAll('[data-node-id]').forEach(function (n) {
+            n.removeAttribute('tabindex');
+            n.removeAttribute('role');
+            n.removeAttribute('aria-pressed');
+          });
+        });
+      }
+
+      /* ---- boot ---------------------------------------------------------------- */
+      function applyInitialHash() {
+        var m = (location.hash || '').match(/#layer=([A-Za-z0-9_-]+)/);
+        var start = m && L.has(m[1]) ? m[1] : rootId;
+        setLodStates(start, 'none');
+        cam = homeCam(start, 1.08);
+        applyCamera();
+        diveStack = [];
+        chainTo(start).slice(0, -1).forEach(function (anc) {
+          diveStack.push({ layer: anc.id, cam: homeCam(anc.id) });
+        });
+      }
+      function boot() {
+        stageSize();
+        cleanNodeSemantics();
+        placeLayer(L.get(rootId));
+        buildOverlays(L.get(rootId)); // before the first LOD pass, or dive hits boot with tabindex=-1 (round-6 R6-P2-02)
+        applyInitialHash();
+        sharpenLive();
+        requestAnimationFrame(function () {
+          relaxDiveLabels(); // one frame later: fonts final, stage still invisible
+          measureMinFonts();
+          bindEvents();
+          stage.classList.add('pch-ready');
+          // embedded-font metrics can still settle after the first frame;
+          // re-measure once more — dive labels are opacity-0 until hovered,
+          // so repositioning here is invisible either way
+          setTimeout(relaxDiveLabels, 400);
+          // CJK fallback font swaps can land even later: re-measure on the
+          // fonts events (coalesced, never mid-flight); the 400ms timer
+          // above stays as the floor, not the protocol
+          if (document.fonts && document.fonts.addEventListener) {
+            var relaxPending = 0;
+            document.fonts.addEventListener('loadingdone', function () {
+              clearTimeout(relaxPending);
+              relaxPending = setTimeout(function () {
+                if (anim) return;
+                relaxDiveLabels();
+                measureMinFonts();
+              }, 120);
+            });
+          }
+        });
+      }
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () { requestAnimationFrame(boot); });
+      } else {
+        window.addEventListener('load', boot);
+      }
+    })();
+  </script>
+</body>
+</html>

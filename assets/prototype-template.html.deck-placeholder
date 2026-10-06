@@ -1,0 +1,249 @@
+#!/usr/bin/env node
+// prechify prototype composer:
+// archify rendered HTML per layer -> extract svg fragment -> namespace ids ->
+// vendor diagram css (minus the global svg{} rule) -> nested world svg -> template fill.
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parse } from 'node-html-parser';
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const read = (p) => readFileSync(join(ROOT, p), 'utf8');
+
+function fail(code, message, extra = {}) {
+  console.error(JSON.stringify({ ok: false, code, message, ...extra }, null, 2));
+  process.exit(1);
+}
+
+// ---------- 1. manifest validation ----------
+let deck;
+try {
+  deck = JSON.parse(read('deck.json'));
+} catch (e) {
+  fail('deck/parse', `deck.json is not valid JSON: ${e.message}`);
+}
+const layerById = new Map();
+for (const l of deck.layers) {
+  if (layerById.has(l.id)) fail('deck/duplicate', `duplicate layer id "${l.id}"`);
+  layerById.set(l.id, l);
+}
+if (!layerById.has(deck.root)) fail('deck/root', `root layer "${deck.root}" not defined`);
+
+const parentOf = new Map(); // childLayerId -> { parent, node, label }
+for (const l of deck.layers) {
+  const seenNodes = new Set();
+  const seenTargets = new Set();
+  for (const d of l.drills ?? []) {
+    if (!layerById.has(d.layer)) fail('deck/drill-target', `layer "${l.id}" drills into unknown layer "${d.layer}"`);
+    if (d.layer === l.id) fail('deck/drill-self', `layer "${l.id}" drills into itself`);
+    if (parentOf.has(d.layer)) fail('deck/drill-conflict', `layer "${d.layer}" is drilled from more than one place`);
+    if (!d.node || typeof d.node !== 'string') fail('deck/drill-node', `layer "${l.id}" drill has no node id`);
+    if (seenNodes.has(d.node)) fail('deck/drill-node', `layer "${l.id}" drills node "${d.node}" twice`);
+    if (seenTargets.has(d.layer)) fail('deck/drill-target', `layer "${l.id}" drills into "${d.layer}" twice`);
+    seenNodes.add(d.node);
+    seenTargets.add(d.layer);
+    parentOf.set(d.layer, { parent: l.id, node: d.node, label: d.label ?? d.layer });
+  }
+}
+if (parentOf.has(deck.root)) {
+  fail('deck/root-cycle', `root layer "${deck.root}" is drilled into by "${parentOf.get(deck.root).parent}" — a cycle through the root is not a tree`);
+}
+// reachability + depth from root (follow drills downward)
+const depth = new Map([[deck.root, 1]]);
+const queue = [deck.root];
+while (queue.length) {
+  const id = queue.shift();
+  const d0 = depth.get(id);
+  for (const d of layerById.get(id).drills ?? []) {
+    if (!depth.has(d.layer)) {
+      if (d0 >= 3) fail('deck/depth', `layer "${d.layer}" exceeds depth limit 3`);
+      depth.set(d.layer, d0 + 1);
+      queue.push(d.layer);
+    }
+  }
+}
+for (const l of deck.layers) {
+  if (!depth.has(l.id)) fail('deck/unreachable', `layer "${l.id}" is not reachable from root "${deck.root}"`);
+}
+
+// ---------- 2. fragment extraction ----------
+function extractFragment(renderedPath, layerId) {
+  const doc = parse(read(renderedPath));
+  const candidates = doc.querySelectorAll('svg[data-preset][viewBox]');
+  if (candidates.length !== 1) {
+    fail('compose/extract', `layer ${layerId}: expected exactly 1 diagram svg, found ${candidates.length}`, { file: renderedPath });
+  }
+  const svg = candidates[0];
+  const vb = String(svg.getAttribute('viewBox')).trim().split(/\s+/).map(Number);
+  if (vb.length !== 4 || vb.some((v) => !Number.isFinite(v)) || vb[2] <= 0 || vb[3] <= 0) {
+    fail('compose/viewBox', `layer ${layerId}: unusable viewBox "${svg.getAttribute('viewBox')}"`);
+  }
+  return { el: svg, viewBox: { x: vb[0], y: vb[1], w: vb[2], h: vb[3] } };
+}
+
+// ---------- 3. id namespacing ----------
+const URL_REF_RE = /url\(#([^)\s]+)\)/g;
+function namespaceIds(svgEl, layerId) {
+  const prefix = `pch-${layerId}-`;
+  const idMap = new Map();
+  for (const el of svgEl.querySelectorAll('[id]')) {
+    const id = el.getAttribute('id');
+    idMap.set(id, prefix + id);
+    el.setAttribute('id', prefix + id);
+  }
+  let rewrites = 0;
+  const rewriteAttrValue = (el) => {
+    const attrs = el.attributes ?? {};
+    for (const [name, value] of Object.entries(attrs)) {
+      if (typeof value !== 'string') continue;
+      if (name === 'aria-labelledby' || name === 'aria-describedby') {
+        const mapped = value.split(/\s+/).map((t) => (idMap.has(t) ? (rewrites++, idMap.get(t)) : t)).join(' ');
+        if (mapped !== value) el.setAttribute(name, mapped);
+      } else if ((name === 'href' || name === 'xlink:href') && value.startsWith('#')) {
+        const key = value.slice(1);
+        if (idMap.has(key)) { el.setAttribute(name, '#' + idMap.get(key)); rewrites++; }
+      } else if (value.includes('url(#')) {
+        const mapped = value.replace(URL_REF_RE, (m, id) => (idMap.has(id) ? (rewrites++, `url(#${idMap.get(id)})`) : m));
+        if (mapped !== value) el.setAttribute(name, mapped);
+      }
+    }
+  };
+  rewriteAttrValue(svgEl); // the svg root itself carries aria-labelledby
+  for (const el of svgEl.querySelectorAll('*')) rewriteAttrValue(el);
+  return { idMap, rewrites };
+}
+
+// ---------- 4. css adapter pack ----------
+function extractStyles(renderedPath) {
+  const doc = parse(read(renderedPath));
+  const fontsEl = doc.querySelector('style#archify-fonts');
+  if (!fontsEl) fail('compose/css', 'archify-fonts style block not found', { file: renderedPath });
+  let mainCss = null;
+  for (const s of doc.querySelectorAll('style')) {
+    if (s.getAttribute('id')) continue;
+    if ((s.textContent ?? '').includes('.diagram-container')) { mainCss = s.textContent; break; }
+  }
+  if (!mainCss) fail('compose/css', 'main diagram style block not found', { file: renderedPath });
+  const globalSvgRule = mainCss.match(/\n[ ]{4}svg \{[^{}]*\}\n/);
+  if (!globalSvgRule) fail('compose/css', 'global svg{} rule not found for removal (template drift?)');
+  mainCss = mainCss.replace(globalSvgRule[0], '\n');
+  return { fontsStyle: fontsEl.outerHTML, css: mainCss };
+}
+
+// ---------- 5. assemble world ----------
+const fragments = new Map();
+for (const l of deck.layers) {
+  const frag = extractFragment(l.rendered, l.id);
+  const hostIds = new Set(
+    [...frag.el.querySelectorAll('[data-node-id]')].map((e) => e.getAttribute('data-node-id'))
+  );
+  for (const d of l.drills ?? []) {
+    if (!hostIds.has(d.node)) {
+      fail('compose/drill-host', `layer ${l.id}: drill node "${d.node}" not found in fragment (has: ${[...hostIds].join(', ')})`);
+    }
+  }
+  fragments.set(l.id, frag);
+}
+
+function buildLayerSvg(layerId, childSvgs) {
+  const frag = fragments.get(layerId);
+  const el = frag.el;
+  const isRoot = layerId === deck.root;
+  const { rewrites } = namespaceIds(el, layerId);
+  el.setAttribute('class', 'pch-layer');
+  el.setAttribute('data-layer', layerId);
+  el.setAttribute('data-lod', isRoot ? 'live' : 'off');
+  el.setAttribute('data-type', layerById.get(layerId).type);
+  el.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  el.setAttribute('overflow', 'hidden');
+  el.setAttribute('x', '0');
+  el.setAttribute('y', '0');
+  el.setAttribute('width', '1');
+  el.setAttribute('height', '1');
+  const inner = el.innerHTML;
+  const backdrop = isRoot ? '' : '<rect class="pch-backdrop" width="100%" height="100%" aria-hidden="true"></rect>';
+  el.innerHTML = [
+    `        <g class="pch-own">${backdrop}${inner}</g>`,
+    `        <g class="pch-children">${childSvgs}</g>`,
+    '        <g class="pch-overlay"></g>',
+  ].join('\n');
+  return { markup: el.outerHTML, rewrites };
+}
+
+const idRewrites = new Map();
+const built = new Set();
+function buildTree(layerId) {
+  if (built.has(layerId)) fail('compose/cycle', `layer "${layerId}" entered twice during assembly — manifest graph is not a tree`);
+  built.add(layerId);
+  const l = layerById.get(layerId);
+  const childSvgs = (l.drills ?? []).map((d) => buildTree(d.layer));
+  const { markup, rewrites } = buildLayerSvg(layerId, childSvgs.join('\n'));
+  idRewrites.set(layerId, rewrites);
+  return markup;
+}
+const rootFrag = fragments.get(deck.root);
+const worldSvg = [
+  `<svg id="pch-root" xmlns="http://www.w3.org/2000/svg" viewBox="${rootFrag.viewBox.x} ${rootFrag.viewBox.y} ${rootFrag.viewBox.w} ${rootFrag.viewBox.h}" preserveAspectRatio="xMidYMid meet" aria-label="${deck.title}">`,
+  buildTree(deck.root),
+  '</svg>',
+].join('\n');
+
+// ---------- 6. deck data for the runtime ----------
+const runtimeLayers = deck.layers.map((l) => ({
+  id: l.id,
+  title: l.title,
+  type: l.type,
+  viewBox: fragments.get(l.id).viewBox,
+  drills: l.drills ?? [],
+  parent: parentOf.get(l.id) ?? null,
+}));
+
+// ---------- 7. template fill ----------
+const template = read('assets/prototype-template.html');
+const { fontsStyle, css } = extractStyles(layerById.get(deck.root).rendered);
+const escapeJson = (v) => JSON.stringify(v).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
+const deckDataScript = `  <script type="application/json" id="pch-deck-data">${escapeJson({
+  title: deck.title,
+  locale: deck.locale ?? 'zh-CN',
+  root: deck.root,
+  layers: runtimeLayers,
+})}</script>`;
+const replacements = [
+  ['<!-- PRECHIFY:FONTS_STYLE -->', fontsStyle],
+  ['<!-- PRECHIFY:DIAGRAM_STYLE -->', `  <style id="pch-diagram-css">\n${css}\n  </style>`],
+  ['<!-- PRECHIFY:WORLD_SVG -->', worldSvg],
+  ['<!-- PRECHIFY:DECK_DATA -->', deckDataScript],
+  ['__DECK_TITLE__', deck.title],
+];
+let out = template;
+for (const [slot, value] of replacements) {
+  if (!out.includes(slot)) fail('compose/template', `template missing slot ${slot}`);
+  out = out.split(slot).join(value);
+}
+mkdirSync(join(ROOT, 'out'), { recursive: true });
+const outPath = 'out/prototype.html';
+writeFileSync(join(ROOT, outPath), out);
+
+// ---------- 8. receipt ----------
+const receipt = {
+  ok: true,
+  out: outPath,
+  bytes: Buffer.byteLength(out),
+  worldViewBox: rootFrag.viewBox,
+  layers: runtimeLayers.map((l) => ({
+    id: l.id,
+    type: l.type,
+    viewBox: `${l.viewBox.w}x${l.viewBox.h}`,
+    idsRenamed: idRewrites.get(l.id) ?? 0,
+    drills: (l.drills ?? []).map((d) => `${d.node} -> ${d.layer}`),
+  })),
+  checks: [
+    { name: 'manifest_tree', ok: true },
+    { name: 'fragment_extracted', ok: true },
+    { name: 'drill_hosts_present', ok: true },
+    { name: 'ids_namespaced', ok: true },
+    { name: 'global_svg_rule_removed', ok: true },
+    { name: 'fonts_embedded_once', ok: true },
+  ],
+};
+console.log(JSON.stringify(receipt, null, 2));

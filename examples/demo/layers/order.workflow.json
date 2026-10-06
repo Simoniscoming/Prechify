@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "订单模块流程",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "client", "label": "客户端" },
+    { "id": "svc", "label": "订单服务" },
+    { "id": "pay", "label": "支付与风控" },
+    { "id": "ops", "label": "异步履约" }
+  ],
+  "phases": [
+    { "id": "place-order", "label": "下单", "fromCol": 0, "toCol": 1 },
+    { "id": "do-pay", "label": "支付", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "fulfil", "label": "履约", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["cart", "checkout", "create-order", "risk", "pay-gateway", "pay-callback", "paid", "fulfilment"],
+  "nodes": [
+    { "id": "cart", "lane": "client", "col": 0, "type": "frontend", "label": "购物车", "sublabel": "选品加购", "width": 132 },
+    { "id": "checkout", "lane": "client", "col": 1, "type": "frontend", "label": "结算页", "sublabel": "确认订单", "width": 132 },
+    { "id": "create-order", "lane": "svc", "col": 2, "type": "backend", "label": "创建订单", "sublabel": "生成订单号", "tag": "幂等去重", "width": 132 },
+    { "id": "risk", "lane": "pay", "col": 2, "type": "security", "label": "风控检查", "sublabel": "限额与名单", "width": 132 },
+    { "id": "pay-gateway", "lane": "pay", "col": 3, "type": "cloud", "label": "支付网关", "sublabel": "收单接口", "width": 132 },
+    { "id": "pay-callback", "lane": "pay", "col": 4, "type": "backend", "label": "支付回调", "sublabel": "验签 + 入账", "tag": "可穿透", "width": 132 },
+    { "id": "fail", "lane": "pay", "col": 5, "type": "security", "label": "支付失败", "sublabel": "退款或重试", "width": 132 },
+    { "id": "paid", "lane": "svc", "col": 4, "type": "backend", "label": "订单已支付", "sublabel": "状态机推进", "width": 132 },
+    { "id": "fulfilment", "lane": "ops", "col": 5, "type": "messagebus", "label": "履约调度", "sublabel": "拆单 / 发货", "width": 132 },
+    { "id": "notify", "lane": "ops", "col": 4, "type": "backend", "label": "消息通知", "sublabel": "短信 / 推送", "width": 132 }
+  ],
+  "edges": [
+    { "id": "cart-to-checkout", "from": "cart", "to": "checkout", "variant": "default" },
+    { "id": "checkout-submit", "from": "checkout", "to": "create-order", "label": "提交订单", "variant": "emphasis" },
+    { "id": "create-order-risk", "from": "create-order", "to": "risk", "label": "风控校验", "variant": "security" },
+    { "id": "risk-pass", "from": "risk", "to": "pay-gateway", "label": "校验通过", "variant": "default" },
+    { "id": "gateway-callback", "from": "pay-gateway", "to": "pay-callback", "label": "异步回调", "variant": "emphasis" },
+    { "id": "callback-fail", "from": "pay-callback", "to": "fail", "label": "验签失败", "variant": "security", "role": "error" },
+    { "id": "callback-paid", "from": "pay-callback", "to": "paid", "label": "验签通过", "variant": "emphasis" },
+    { "id": "paid-fulfil", "from": "paid", "to": "fulfilment", "label": "触发履约", "variant": "dashed" },
+    { "id": "paid-notify", "from": "paid", "to": "notify", "label": "成功通知", "variant": "dashed" }
+  ]
+}

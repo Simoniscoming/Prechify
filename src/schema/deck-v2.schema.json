@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "prechify deck manifest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "title", "root", "layers"],
+  "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
+    "schema_version": { "const": 2 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "locale": { "enum": ["zh-CN", "en"] },
+    "root": { "$ref": "#/$defs/layerId" },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/layer" }
+    }
+  },
+  "$defs": {
+    "layerId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "relativeSpec": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?![A-Za-z][A-Za-z0-9+.-]*:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000-\\u001f]+\\.json$"
+    },
+    "drill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "layer", "label"],
+      "properties": {
+        "node": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "layer": { "$ref": "#/$defs/layerId" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "type", "spec", "drills"],
+      "properties": {
+        "id": { "$ref": "#/$defs/layerId" },
+        "title": { "$ref": "#/$defs/title" },
+        "type": { "enum": ["architecture", "workflow", "sequence"] },
+        "spec": { "$ref": "#/$defs/relativeSpec" },
+        "drills": { "type": "array", "items": { "$ref": "#/$defs/drill" } }
+      }
+    }
+  }
+}

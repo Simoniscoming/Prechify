@@ -1,0 +1,22 @@
+{
+  "name": "prechify",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Prezi-style drill-down presentations over archify diagrams — skill CLI",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "compose": "node tools/compose-prototype.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "node-html-parser": "^6.1.13"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

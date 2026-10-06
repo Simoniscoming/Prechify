@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "支付链路时序",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "buyer", "type": "external", "label": "买家", "sublabel": "收银台页面" },
+    { "id": "order", "type": "backend", "label": "订单服务", "sublabel": "支付编排" },
+    { "id": "risk", "type": "security", "label": "风控", "sublabel": "实时决策" },
+    { "id": "gateway", "type": "cloud", "label": "支付网关", "sublabel": "收单通道" },
+    { "id": "bank", "type": "external", "label": "银行渠道", "sublabel": "网银授权" },
+    { "id": "ledger", "type": "database", "label": "记账", "sublabel": "资金流水" }
+  ],
+  "segments": [
+    { "from": 172, "to": 272, "label": "创建支付" },
+    { "from": 280, "to": 384, "label": "授权回调" },
+    { "from": 392, "to": 492, "label": "入账通知" }
+  ],
+  "messages": [
+    { "id": "pay-start", "from": "buyer", "to": "order", "y": 180, "label": "发起支付", "variant": "default" },
+    { "id": "risk-eval", "from": "order", "to": "risk", "y": 208, "label": "风控评估", "variant": "security" },
+    { "id": "risk-pass", "from": "risk", "to": "order", "y": 236, "label": "评估通过", "variant": "return" },
+    { "id": "create-payment", "from": "order", "to": "gateway", "y": 264, "label": "创建支付单", "variant": "emphasis" },
+    { "id": "auth-request", "from": "gateway", "to": "bank", "y": 292, "label": "拉起授权", "variant": "default" },
+    { "id": "auth-result", "from": "bank", "to": "gateway", "y": 320, "label": "授权结果", "variant": "return" },
+    { "id": "pay-callback", "from": "gateway", "to": "order", "y": 348, "label": "支付回调", "variant": "emphasis" },
+    { "id": "ledger-write", "from": "order", "to": "ledger", "y": 376, "label": "异步入账", "variant": "dashed" },
+    { "id": "ledger-ok", "from": "ledger", "to": "order", "y": 406, "label": "入账确认", "variant": "return" },
+    { "id": "pay-done", "from": "order", "to": "buyer", "y": 456, "label": "支付成功", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "order", "from": 176, "to": 460, "type": "backend" },
+    { "participant": "risk", "from": 202, "to": 240, "type": "security" },
+    { "participant": "gateway", "from": 259, "to": 352, "type": "cloud" },
+    { "participant": "bank", "from": 287, "to": 325, "type": "external" },
+    { "participant": "ledger", "from": 372, "to": 410, "type": "database" }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "库存补偿时序",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "timer", "type": "external", "label": "调度器", "sublabel": "定时扫描" },
+    { "id": "mq", "type": "messagebus", "label": "延迟队列", "sublabel": "TTL 消息" },
+    { "id": "order", "type": "backend", "label": "订单服务", "sublabel": "超时取消" },
+    { "id": "inv", "type": "backend", "label": "库存服务", "sublabel": "预留管理" },
+    { "id": "invdb", "type": "database", "label": "库存库", "sublabel": "预留记录" },
+    { "id": "alert", "type": "security", "label": "运营告警", "sublabel": "差异处理" }
+  ],
+  "segments": [
+    { "from": 172, "to": 215, "label": "延迟触发" },
+    { "from": 225, "to": 335, "label": "释放预留" },
+    { "from": 345, "to": 495, "label": "冲正与对账" }
+  ],
+  "messages": [
+    { "id": "arm-delay", "from": "timer", "to": "mq", "y": 181, "label": "投递 TTL 消息", "variant": "emphasis" },
+    { "id": "ttl-fire", "from": "mq", "to": "order", "y": 205, "label": "超时触发", "variant": "dashed" },
+    { "id": "cancel-order", "from": "order", "to": "inv", "y": 232, "label": "取消并释放", "variant": "default" },
+    { "id": "query-reserve", "from": "inv", "to": "invdb", "y": 255, "label": "查询预留", "variant": "default" },
+    { "id": "reserve-row", "from": "invdb", "to": "inv", "y": 283, "label": "预留记录", "variant": "return" },
+    { "id": "release-reserve", "from": "inv", "to": "invdb", "y": 313, "label": "释放预留", "variant": "emphasis" },
+    { "id": "reverse-write", "from": "inv", "to": "invdb", "y": 353, "label": "冲正流水", "variant": "dashed" },
+    { "id": "reverse-done", "from": "invdb", "to": "inv", "y": 381, "label": "冲正完成", "variant": "return" },
+    { "id": "settle-scan", "from": "timer", "to": "inv", "y": 423, "label": "对账快照", "variant": "dashed" },
+    { "id": "diff-alert", "from": "inv", "to": "alert", "y": 453, "label": "差异告警", "variant": "security" },
+    { "id": "manual-ack", "from": "alert", "to": "inv", "y": 481, "label": "人工确认", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "mq", "from": 160, "to": 200, "type": "messagebus" },
+    { "participant": "order", "from": 190, "to": 236, "type": "backend" },
+    { "participant": "inv", "from": 220, "to": 485, "type": "backend" },
+    { "participant": "invdb", "from": 250, "to": 386, "type": "database" },
+    { "participant": "alert", "from": 448, "to": 485, "type": "security" }
+  ]
+}

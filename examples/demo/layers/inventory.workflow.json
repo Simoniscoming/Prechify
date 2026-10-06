@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "库存扣减工作流",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    { "id": "trade", "label": "交易入口" },
+    { "id": "core", "label": "库存核心" },
+    { "id": "data", "label": "数据与补偿" }
+  ],
+  "phases": [
+    { "id": "reserve", "label": "预留", "fromCol": 0, "toCol": 1 },
+    { "id": "deduct", "label": "扣减", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "settle", "label": "对账补偿", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["order-req", "check", "reserve", "deduct", "ledger"],
+  "nodes": [
+    { "id": "order-req", "lane": "trade", "col": 0, "type": "external", "label": "下单请求", "sublabel": "锁定库存", "width": 132 },
+    { "id": "check", "lane": "trade", "col": 1, "type": "backend", "label": "可用量校验", "sublabel": "预占查询", "tag": "幂等去重", "width": 132 },
+    { "id": "short", "lane": "trade", "col": 2, "type": "security", "label": "库存不足", "sublabel": "缺货提示", "width": 132 },
+    { "id": "reserve", "lane": "core", "col": 2, "type": "backend", "label": "预留库存", "sublabel": "TTL 锁定", "width": 132 },
+    { "id": "deduct", "lane": "core", "col": 3, "type": "backend", "label": "扣减落库", "sublabel": "原子递减", "tag": "事务保护", "width": 132 },
+    { "id": "release", "lane": "core", "col": 4, "type": "security", "label": "超时释放", "sublabel": "解除预留", "width": 132 },
+    { "id": "ledger", "lane": "data", "col": 4, "type": "database", "label": "库存流水", "sublabel": "变更审计", "width": 132 },
+    { "id": "compensate", "lane": "data", "col": 5, "type": "backend", "label": "补偿对账", "sublabel": "冲正与差异", "tag": "可穿透", "width": 132 }
+  ],
+  "edges": [
+    { "id": "req-check", "from": "order-req", "to": "check", "label": "提交", "variant": "default" },
+    { "id": "check-short", "from": "check", "to": "short", "label": "可用不足", "variant": "security", "role": "error" },
+    { "id": "check-reserve", "from": "check", "to": "reserve", "label": "预占通过", "variant": "emphasis" },
+    { "id": "reserve-deduct", "from": "reserve", "to": "deduct", "label": "支付成功", "variant": "emphasis" },
+    { "id": "reserve-release", "from": "reserve", "to": "release", "label": "TTL 超时", "variant": "dashed", "role": "branch" },
+    { "id": "deduct-ledger", "from": "deduct", "to": "ledger", "label": "写流水", "variant": "default" },
+    { "id": "release-ledger", "from": "release", "to": "ledger", "label": "冲正记录", "variant": "dashed" },
+    { "id": "ledger-compensate", "from": "ledger", "to": "compensate", "label": "对账输入", "variant": "dashed" }
+  ]
+}

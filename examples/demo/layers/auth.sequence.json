@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "认证链路时序",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "app", "type": "external", "label": "用户端", "sublabel": "App / 浏览器" },
+    { "id": "gateway", "type": "cloud", "label": "API 网关", "sublabel": "统一入口" },
+    { "id": "auth", "type": "backend", "label": "认证服务", "sublabel": "JWT 签发" },
+    { "id": "account", "type": "database", "label": "账户库", "sublabel": "凭证与盐值" },
+    { "id": "session", "type": "database", "label": "会话缓存", "sublabel": "Redis 会话" },
+    { "id": "risk", "type": "security", "label": "风控", "sublabel": "设备指纹" }
+  ],
+  "segments": [
+    { "from": 172, "to": 325, "label": "登录校验" },
+    { "from": 335, "to": 420, "label": "签发与会话" },
+    { "from": 430, "to": 495, "label": "令牌刷新" }
+  ],
+  "messages": [
+    { "id": "login-request", "from": "app", "to": "gateway", "y": 181, "label": "登录请求", "variant": "default" },
+    { "id": "auth-forward", "from": "gateway", "to": "auth", "y": 205, "label": "转发认证", "variant": "emphasis" },
+    { "id": "verify-credential", "from": "auth", "to": "account", "y": 225, "label": "验证凭证", "variant": "default" },
+    { "id": "credential-ok", "from": "account", "to": "auth", "y": 253, "label": "凭证有效", "variant": "return" },
+    { "id": "risk-scan", "from": "auth", "to": "risk", "y": 283, "label": "设备风控", "variant": "security" },
+    { "id": "risk-pass", "from": "risk", "to": "auth", "y": 311, "label": "风险通过", "variant": "return" },
+    { "id": "session-write", "from": "auth", "to": "session", "y": 341, "label": "写入会话", "variant": "dashed" },
+    { "id": "jwt-issue", "from": "auth", "to": "gateway", "y": 371, "label": "签发 JWT", "variant": "emphasis" },
+    { "id": "token-relay", "from": "gateway", "to": "app", "y": 401, "label": "令牌下发", "variant": "return" },
+    { "id": "refresh-request", "from": "app", "to": "gateway", "y": 451, "label": "刷新令牌", "variant": "dashed" },
+    { "id": "refresh-new", "from": "gateway", "to": "app", "y": 479, "label": "下发新令牌", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "gateway", "from": 160, "to": 485, "type": "cloud" },
+    { "participant": "auth", "from": 190, "to": 375, "type": "backend" },
+    { "participant": "account", "from": 220, "to": 258, "type": "database" },
+    { "participant": "risk", "from": 278, "to": 315, "type": "security" },
+    { "participant": "session", "from": 336, "to": 360, "type": "database" }
+  ]
+}

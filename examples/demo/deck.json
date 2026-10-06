@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "title": "电商平台订单系统",
+  "locale": "zh-CN",
+  "root": "overview",
+  "layers": [
+    {
+      "id": "overview",
+      "title": "系统总览",
+      "type": "architecture",
+      "spec": "layers/overview.architecture.json",
+      "drills": [
+        {
+          "node": "order",
+          "layer": "order",
+          "label": "订单模块流程"
+        },
+        {
+          "node": "auth",
+          "layer": "auth",
+          "label": "认证链路时序"
+        },
+        {
+          "node": "inventory",
+          "layer": "inventory",
+          "label": "库存扣减工作流"
+        }
+      ]
+    },
+    {
+      "id": "order",
+      "title": "订单模块流程",
+      "type": "workflow",
+      "spec": "layers/order.workflow.json",
+      "drills": [
+        {
+          "node": "pay-callback",
+          "layer": "payment",
+          "label": "支付链路时序"
+        }
+      ]
+    },
+    {
+      "id": "payment",
+      "title": "支付链路时序",
+      "type": "sequence",
+      "spec": "layers/payment.sequence.json",
+      "drills": []
+    },
+    {
+      "id": "auth",
+      "title": "认证链路时序",
+      "type": "sequence",
+      "spec": "layers/auth.sequence.json",
+      "drills": []
+    },
+    {
+      "id": "inventory",
+      "title": "库存扣减工作流",
+      "type": "workflow",
+      "spec": "layers/inventory.workflow.json",
+      "drills": [
+        {
+          "node": "compensate",
+          "layer": "compensation",
+          "label": "库存补偿时序"
+        }
+      ]
+    },
+    {
+      "id": "compensation",
+      "title": "库存补偿时序",
+      "type": "sequence",
+      "spec": "layers/compensation.sequence.json",
+      "drills": []
+    }
+  ]
+}

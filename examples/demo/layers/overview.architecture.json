@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "电商平台订单系统",
+    "locale": "zh-CN",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "users", "type": "external", "label": "用户", "sublabel": "App / 浏览器", "pos": [40, 300], "size": [120, 60] },
+    { "id": "cdn", "type": "cloud", "label": "CDN", "sublabel": "静态资源", "pos": [250, 300], "size": [130, 60] },
+    { "id": "gateway", "type": "cloud", "label": "API 网关", "sublabel": "HTTPS :443", "pos": [460, 300], "size": [130, 60] },
+    { "id": "order", "type": "backend", "label": "订单服务", "sublabel": "订单核心", "pos": [670, 300], "size": [130, 60], "tag": "可穿透" },
+    { "id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "订单库 :5432", "pos": [880, 300], "size": [130, 60] },
+    { "id": "cache", "type": "database", "label": "Redis", "sublabel": "热点缓存", "pos": [670, 150], "size": [130, 60] },
+    { "id": "auth", "type": "security", "label": "认证服务", "sublabel": "登录 / JWT 签发", "pos": [250, 150], "size": [130, 60], "tag": "可穿透" },
+    { "id": "payment", "type": "backend", "label": "支付服务", "sublabel": "收单与退款", "pos": [670, 440], "size": [130, 60] },
+    { "id": "queue", "type": "messagebus", "label": "消息队列", "sublabel": "领域事件", "pos": [460, 440], "size": [130, 60] },
+    { "id": "inventory", "type": "backend", "label": "库存服务", "sublabel": "扣减与预留", "pos": [880, 440], "size": [130, 60], "tag": "可穿透" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "云端集群", "wraps": ["cdn", "gateway", "auth", "order", "cache", "db", "payment", "queue", "inventory"] }
+  ],
+  "connections": [
+    { "id": "users-to-cdn", "from": "users", "to": "cdn", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "cdn-to-gateway", "from": "cdn", "to": "gateway" },
+    { "id": "gateway-to-auth", "from": "gateway", "to": "auth", "label": "JWT 校验", "variant": "security" },
+    { "id": "gateway-to-order", "from": "gateway", "to": "order", "label": "路由" },
+    { "id": "order-to-db", "from": "order", "to": "db", "label": "落库" },
+    { "id": "order-to-cache", "from": "order", "to": "cache", "label": "缓存" },
+    { "id": "order-to-payment", "from": "order", "to": "payment", "label": "发起支付", "labelDy": 24 },
+    { "id": "payment-to-queue", "from": "payment", "to": "queue", "label": "支付事件", "variant": "dashed" },
+    { "id": "inventory-to-db", "from": "inventory", "to": "db", "label": "库存扣减", "variant": "dashed" }
+  ]
+}
