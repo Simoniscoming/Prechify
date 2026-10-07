@@ -34,7 +34,7 @@ jobs:
       - name: Vendored renderer + template integrity (doctor)
         run: node bin/prechify.mjs doctor
       - name: Contract + CLI tests (incl. full deliver of the demo deck)
-        run: node --test tests/
+        run: node --test "tests/**/*.test.mjs"
 
   # Planned for v0.2: browser acceptance (chromium/firefox/webkit via
   # playwright) and an offline unpacked-skill smoke job. Not claimed until run.

@@ -21,7 +21,7 @@ keyboard access, deep links. Author with JSON specs; ship one HTML file.
 Requires Node ≥ 22. The renderer is vendored — nothing else to install.
 
 ```bash
-git clone https://github.com/Simoniscoming/prechify.git
+git clone https://github.com/<you>/prechify.git
 cd prechify && npm ci            # ajv + node-html-parser only
 node bin/prechify.mjs doctor     # verify vendored renderer & template
 

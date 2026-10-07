@@ -1,0 +1,4 @@
+# No EOL conversion anywhere: vendor/archify.lock.json pins per-file SHA-256
+# hashes, and a CRLF checkout (GitHub windows runners default autocrlf=true)
+# rewrites every file and breaks doctor's vendor-integrity check (CI run 1).
+* -text
