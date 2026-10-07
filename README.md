@@ -21,7 +21,7 @@ keyboard access, deep links. Author with JSON specs; ship one HTML file.
 Requires Node ≥ 22. The renderer is vendored — nothing else to install.
 
 ```bash
-git clone https://github.com/<you>/prechify.git
+git clone https://github.com/Simoniscoming/prechify.git
 cd prechify && npm ci            # ajv + node-html-parser only
 node bin/prechify.mjs doctor     # verify vendored renderer & template
 
@@ -81,12 +81,12 @@ Windows 11 / Intel Iris Xe, headed with native GPU.
 
 | Environment | Status |
 |---|---|
-| Desktop Chromium (Chrome/Edge, current stable) | ✅ **full acceptance** — 72/72 functions, zero console errors, flight p50 8-13ms / p95 ≤17.1ms / warm max ≤60ms (2-of-3 rule passed both directions) |
+| Desktop Chromium | ✅ **full acceptance on Chrome stable**（实测走 `channel:'chrome'`）— 72/72 functions, zero console errors, flight p50 8-13ms / p95 ≤17.1ms；warm max：每方向至少 2/3 轮 ≤60ms（一次 84.1ms 尖峰）· Edge 未独立复验（同为 Chromium，预期一致） |
 | Firefox (current stable) | ✅ functional acceptance (72/72, zero errors, keyboard/focus fallbacks verified) · ⚠ deep-dive flights p95 ~31-37ms — usable but below the Chrome-class smoothness bar; optimization scheduled for v0.2 |
-| WebKit (Windows, playwright build) | ✅ functional acceptance (72/72, zero errors) · ⚠ flights uniformly ~30-40ms/frame — visibly calmer than Chrome; **real-device Safari still unverified** (v0.2) |
+| WebKit (Windows, playwright build) | ✅ functional acceptance (72/72, zero errors) · ⚠ flights p50 29-39ms / p95 34-52ms（明显缓于 Chrome）；**real-device Safari still unverified** (v0.2) |
 | Touch / pinch | ❌ not supported in v0.1 (desktop mouse + keyboard) |
 | CJK text | ✅ works via system font fallback — glyph appearance differs across OS; label placement re-measures on font-swap and warns when no collision-free slot exists |
-| Cold first flight after page load | ⚠ single ~45-65ms frame recorded per engine (first raster of the target layer); warm flights unaffected. Cold root-exit after deep dives keeps the registered 2-4 frame spike (P1-13, see `docs` in the dev notes) |
+| Cold first flight after page load | ⚠ 首穿单帧尖峰按引擎实测：Chrome 61.7–63.1ms / Firefox 32–45ms / WebKit 41–43ms（目标层首次栅格化）；warm flights unaffected. Cold root-exit after deep dives keeps the registered 2-4 frame spike (P1-13, see `docs` in the dev notes) |
 | Author-side | Node ≥ 22 on Windows/macOS/Linux; renderer vendored, no downloads |
 
 Reader side needs only a browser; the delivered file is fully offline

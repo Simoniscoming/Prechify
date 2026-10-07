@@ -76,20 +76,23 @@ standalone diagram belongs to archify.
 
 - Desktop mouse + keyboard. Touch/pinch is not supported in v0.1.
 - Browser acceptance (Windows / Intel Iris Xe; 24 scenarios × 3 passes =
-  72 assertions per engine, 3 engines): **Chrome stable passed everything**
-  including smoothness
-  (flight p95 ≤17.1ms). **Firefox and WebKit passed every functional scenario
-  with zero console errors** (keyboard, focus and theme fallbacks verified),
+  72 assertions per engine, 3 engines): **Chrome stable (tested via
+  `channel:'chrome'`) passed everything** including smoothness (flight
+  p95 ≤17.1ms; warm max ≤60ms in ≥2 of 3 runs per direction, one 84.1ms
+  outlier). Edge shares the Chromium engine but was not independently
+  re-verified. **Firefox and WebKit passed every functional scenario with
+  zero console errors** (keyboard, focus and theme fallbacks verified),
   but flights run below Chrome's smoothness bar — Firefox deep dives p95
-  ~31-37ms, WebKit ~30-40ms/frame. Real-device Safari is not yet verified.
-  State these numbers when users ask about non-Chromium browsers; do not
-  promise "equally smooth everywhere".
+  ~31-37ms, WebKit p50 29-39ms / p95 34-52ms. Real-device Safari is not yet
+  verified. State these numbers when users ask about non-Chromium browsers;
+  do not promise "equally smooth everywhere".
 - System CJK font fallback: glyph appearance and measured label positions can
   differ across Windows/macOS/Linux. Labels re-measure on font-swap; when no
   collision-free slot exists the page exposes
   `data-pch-label-warnings` and logs a console warning — report it rather
   than hiding it.
-- Cold first flight after page load can drop a single ~45-65ms frame; cold
+- Cold first flight after page load can drop a single spike frame (measured
+  per engine: Chrome 61.7–63.1ms / Firefox 32–45ms / WebKit 41–43ms); cold
   root-exit after deep dives keeps the registered 2-4 frame spike (P1-13).
   Frame rates vary by hardware/GPU.
 - Use `--archify <bin/archify.mjs>` only for deliberate compatibility
